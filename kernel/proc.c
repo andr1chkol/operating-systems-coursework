@@ -145,7 +145,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+  p->syscall_mask = 0; 
   return p;
 }
 
@@ -278,6 +278,8 @@ kfork(void)
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
+  np->syscall_mask = p->syscall_mask;
+  
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
