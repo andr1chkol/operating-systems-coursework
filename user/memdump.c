@@ -83,6 +83,10 @@ memdump(char *fmt, char *data, int len)
         data++;
         len--;
       }
+      if (len > 0) {
+        data++;
+        len--;
+      }
       printf("\n");
       continue;
     default:
@@ -94,21 +98,23 @@ memdump(char *fmt, char *data, int len)
       return;
     }
 
+    uint64 value = 0;
+    memmove(&value, data, size);
     switch (*fmt) {
     case 'i':
-      printf("%d\n", *(int *)data);
+      printf("%d\n", (int)value);
       break;
     case 'p':
-      printf("%lx\n", *(uint64 *)data);
+      printf("%lx\n", value);
       break;
     case 'h':
-      printf("%d\n", *(short *)data);
+      printf("%d\n", (short)value);
       break;
     case 'c':
       printf("%c\n", *data);
       break;
     case 's':
-      printf("%s\n", *(char **)data);
+      printf("%s\n", (char *)value);
       break;
     }
 
