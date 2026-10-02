@@ -2,58 +2,53 @@
 #include "kernel/fcntl.h"
 #include "user/user.h"
 
-
-void sixfive(int fd){
+static void
+sixfive(int fd)
+{
   char c;
   int n;
   int number = 0;
-  int read_number = 0;
+  int digits = 0;
   int valid = 1;
-  while ((n = read(fd, &c, 1)) > 0 ){
-       if (c >= '0' && c <= '9'){
-         if (valid){
-          number = number * 10 + (c-'0');
-          read_number = 1;
-          }
-       }
-       else if(strchr(" -\r\t\n./,", c)) {
-        if (read_number && valid) {
-          if (number % 5 == 0 || number % 6 == 0){
-          printf("%d\n", number);
-          }
 
-          number = 0;
-          read_number = 0;
-          valid = 1;
-        }
-        else {
-        number = 0;
-        read_number = 0;
-        valid = 0;
-        }
+  while ((n = read(fd, &c, 1)) > 0) {
+    if (strchr(" -\r\t\n./,", c) != 0 && c != '\0') {
+      if (digits && valid && (number % 5 == 0 || number % 6 == 0))
+        printf("%d\n", number);
+      number = 0;
+      digits = 0;
+      valid = 1;
+    } else if (c >= '0' && c <= '9') {
+      int digit = c - '0';
+      digits = 1;
+      if (valid) {
+        if (number > (2147483647 - digit) / 10)
+          valid = 0;
+        else
+          number = number * 10 + digit;
       }
-  }
-  if (read_number && valid){
-    if (number % 5 == 0 || number % 6 == 0){
-      printf("%d\n", number);
+    } else {
+      valid = 0;
     }
   }
-  if (n < 0){
-    fprintf(2, "sixfive read error\n");
+  if (n < 0) {
+    fprintf(2, "sixfive: read error\n");
     exit(1);
   }
+  if (digits && valid && (number % 5 == 0 || number % 6 == 0))
+    printf("%d\n", number);
 }
 
-int main (int argc, char *argv[]){
-  int fd;
-
-  if (argc <= 1){
-    printf("Error: too few arguments\n");
-    printf("Usage %s <file> [<file> ...]\n", argv[0]);
-    exit(1);
+int
+main(int argc, char *argv[])
+{
+  if (argc == 1) {
+    sixfive(0);
+    exit(0);
   }
-  for (int i = 1; i < argc;  i++) {
-    if ((fd = open(argv[i], O_RDONLY)) < 0){
+  for (int i = 1; i < argc; i++) {
+    int fd = open(argv[i], O_RDONLY);
+    if (fd < 0) {
       fprintf(2, "sixfive: cannot open %s\n", argv[i]);
       exit(1);
     }
@@ -61,5 +56,4 @@ int main (int argc, char *argv[]){
     close(fd);
   }
   exit(0);
-
 }

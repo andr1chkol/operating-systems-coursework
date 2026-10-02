@@ -209,4 +209,12 @@ def test_find_corner():
 def test_time():
     check_time()
     
+@test(5, "sixfive, token boundaries")
+def test_sixfive_boundaries():
+    r.run_qemu(shell_script([
+        'echo /6,,5 xv6 6x a30 12 7 2147483648 30 | sixfive',
+    ]))
+    numbers = re.findall(r'(?m)^([0-9]+)\r?$', r.qemu.output)
+    assert_equal(numbers, ['6', '5', '12', '30'], "standalone multiples")
+
 run_tests()
