@@ -1,0 +1,27 @@
+1. Funkciu syscall() zavolala funkcia usertrap(). Pouzivatelske volanie
+   ecall najprv prejde cez trampoline do usertrap(), ktora po rozpoznani
+   scause == 8 zavola syscall().
+
+2. Hodnota p->trapframe->a7 je pri prvom volani 15. Ide o SYS_open,
+   pretoze prvy pouzivatelsky proces init vola open("console", O_RDWR).
+   Register a7 obsahuje cislo systemoveho volania.
+
+3. Predchadzajuci privilegovany rezim bol user mode. Vidno to z bitu SPP
+   v registri sstatus: SPP == 0 znamena, ze trap prisiel z user mode;
+   SPP == 1 by znamenalo supervisor mode.
+
+4. Po nahradeni nacitania cisla systemoveho volania vyrazom
+   num = *(int *)0 jadro zlyha na instrukcii podobnej
+   "lw a5, 0(zero)". Presna adresa instrukcie sa moze medzi zostaveniami
+   lisit. Premenna num je v tejto instrukcii ulozena v registri a5.
+
+5. Jadro spadlo, pretoze instrukcia sa pokusila citat z virtualnej adresy
+   0. Adresa 0 nie je namapovana v kernel page table, preto tento pristup
+   vyvolal page fault. Register stval obsahuje hodnotu 0, teda adresu,
+   ku ktorej sa instrukcia pokusila pristupit, a sepc obsahuje adresu
+   zlyhanej instrukcie.
+
+6. Hodnota scause 0xd (13) znamena load page fault, co zodpoveda pokusu
+   nacitat hodnotu z nenamapovanej adresy 0.
+
+7. V case panicu bezal proces s nazvom "init" a jeho pid bol 1.
