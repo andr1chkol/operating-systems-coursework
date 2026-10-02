@@ -21,7 +21,7 @@ main(int argc, char *argv[])
   int mask = 1;
   char *nargv[MAXARG];
 
-  if (argc < 4) {
+  if (argc < 4 || argc - 3 >= MAXARG) {
     usage(argv[0]);
   }
 

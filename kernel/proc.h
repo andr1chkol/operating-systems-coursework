@@ -101,4 +101,5 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   uint64 syscall_mask;
+  char allowed_path[MAXPATH];
 };

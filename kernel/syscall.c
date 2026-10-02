@@ -147,8 +147,21 @@ syscall(void)
     // Use num to lookup the system call function for num, call it,
     // and store its return value in p->trapframe->a0
     if (p->syscall_mask & (1ULL << num)) {
-      p->trapframe->a0 = -1;
-      return;
+      int allowed = 0;
+
+      if (num == SYS_open || num == SYS_exec) {
+        char path[MAXPATH];
+
+        if (strncmp(p->allowed_path, "-", MAXPATH) != 0 &&
+            argstr(0, path, MAXPATH) >= 0 &&
+            strncmp(path, p->allowed_path, MAXPATH) == 0)
+          allowed = 1;
+      }
+
+      if (!allowed) {
+        p->trapframe->a0 = -1;
+        return;
+      }
     }
     p->trapframe->a0 = syscalls[num]();
   } else {
