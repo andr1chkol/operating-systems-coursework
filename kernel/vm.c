@@ -161,8 +161,7 @@ vmprint_walk(pagetable_t pagetable, int level, uint64 base)
     for (int depth = 0; depth < 3 - level; depth++)
       printk(" ..");
 
-
-printk("%p: pte %p pa %p ", (void *)va, (void *)pte, (void *)pa);
+    printk("%p: pte %p pa %p ", (void *)va, (void *)pte, (void *)pa);
 
     if (pte & PTE_R)
       printk("R");
@@ -173,6 +172,8 @@ printk("%p: pte %p pa %p ", (void *)va, (void *)pte, (void *)pa);
     if (pte & PTE_U)
       printk("U");
 
+    if (level > 0 && (pte & (PTE_R | PTE_W | PTE_X)))
+      printk(" superpage");
     printk("\n");
 
     if (level > 0 &&
@@ -186,7 +187,7 @@ printk("%p: pte %p pa %p ", (void *)va, (void *)pte, (void *)pa);
 void
 vmprint(pagetable_t pagetable)
 {
-  printk("page table %p\n", (void* )pagetable);
+  printk("page table %p\n", (void *)pagetable);
   vmprint_walk(pagetable, 2, 0);
 }
 #endif
@@ -198,8 +199,40 @@ vmprint(pagetable_t pagetable)
 void
 kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm)
 {
-  if (mappages(kpgtbl, va, sz, pa, perm) != 0)
-    panic("kvmmap");
+  if (sz == 0 || va % PGSIZE || pa % PGSIZE || sz % PGSIZE)
+    panic("kvmmap: alignment");
+
+  while (sz > 0) {
+    uint64 step = PGSIZE;
+    pte_t *pte;
+    if (va % SUPERPGSIZE == 0 && pa % SUPERPGSIZE == 0 &&
+        sz >= SUPERPGSIZE) {
+      // Stop at level 1: this leaf maps a complete 2 MiB region.
+      pte_t *root = &kpgtbl[PX(2, va)];
+      if (!(*root & PTE_V)) {
+        pagetable_t child = (pagetable_t)kalloc();
+        if (child == 0)
+          panic("kvmmap: allocation");
+        memset(child, 0, PGSIZE);
+        *root = PA2PTE(child) | PTE_V;
+      }
+      if (*root & (PTE_R | PTE_W | PTE_X))
+        panic("kvmmap: root leaf");
+      pagetable_t child = (pagetable_t)PTE2PA(*root);
+      pte = &child[PX(1, va)];
+      step = SUPERPGSIZE;
+    } else {
+      pte = walk(kpgtbl, va, 1);
+      if (pte == 0)
+        panic("kvmmap: allocation");
+    }
+    if (*pte & PTE_V)
+      panic("kvmmap: remap");
+    *pte = PA2PTE(pa) | perm | PTE_V;
+    va += step;
+    pa += step;
+    sz -= step;
+  }
 }
 
 // Create PTEs for virtual addresses starting at va that refer to

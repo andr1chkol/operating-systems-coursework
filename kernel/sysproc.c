@@ -110,8 +110,51 @@ sys_vmprint(void)
 int
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
-  return 0;
+  uint64 start, dst;
+  int npage;
+  // One bitmap page covers at most 32768 user pages.
+  unsigned char *bits;
+  struct proc *p = myproc();
+
+  argaddr(0, &start);
+  argint(1, &npage);
+  argaddr(2, &dst);
+  if (npage <= 0 || npage > PGSIZE * 8 || start >= MAXVA)
+    return -1;
+  start = PGROUNDDOWN(start);
+  if ((uint64)npage > (MAXVA - start) / PGSIZE)
+    return -1;
+
+  // Validate every mapping before changing its accessed bit.
+  for (int i = 0; i < npage; i++) {
+    pte_t *pte = walk(p->pagetable, start + (uint64)i * PGSIZE, 0);
+    if (pte == 0 || (*pte & (PTE_V | PTE_U)) != (PTE_V | PTE_U) ||
+        !PTE_LEAF(*pte))
+      return -1;
+  }
+  int nbytes = (npage + 7) / 8;
+  if (dst >= MAXVA || (uint64)nbytes > MAXVA - dst)
+    return -1;
+  for (uint64 va = PGROUNDDOWN(dst); va < dst + nbytes; va += PGSIZE) {
+    pte_t *pte = walk(p->pagetable, va, 0);
+    if (pte == 0 || (*pte & (PTE_V | PTE_U | PTE_W)) !=
+        (PTE_V | PTE_U | PTE_W))
+      return -1;
+  }
+  if ((bits = kalloc()) == 0)
+    return -1;
+  memset(bits, 0, nbytes);
+  for (int i = 0; i < npage; i++) {
+    pte_t *pte = walk(p->pagetable, start + (uint64)i * PGSIZE, 0);
+    if (*pte & PTE_A) {
+      bits[i / 8] |= 1 << (i % 8);
+      *pte &= ~PTE_A;
+    }
+  }
+  sfence_vma();
+  int ret = copyout(p->pagetable, p->sz, dst, (char *)bits, nbytes);
+  kfree(bits);
+  return ret;
 }
 #endif
 

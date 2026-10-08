@@ -1,0 +1,50 @@
+Tabuľka stránok a vmprint
+
+va je virtuálna adresa, pte je záznam tabuľky stránok, pa je fyzická
+adresa získaná pomocou PTE2PA a perm obsahuje príznaky PTE.
+V označuje platný záznam; R čítanie, W zápis, X vykonávanie a U prístup
+z používateľského režimu. A označuje prístup a D zápis do stránky.
+Neplatné záznamy nepredstavujú mapovanie. Susedné virtuálne stránky
+nemusia mať susedné fyzické adresy.
+
+Sv39 používa tri úrovne tabuliek s 512 záznamami. Vnútorný platný záznam
+bez R/W/X odkazuje na ďalšiu tabuľku. Listový záznam mapuje pamäť.
+vmprint zobrazuje aj vnútorné tabuľky, zatiaľ čo print_pgtbl zobrazuje
+PTE vybraných virtuálnych stránok. Listy oboch výpisov sa zhodujú.
+
+Text má RXU: používateľ môže čítať a vykonávať inštrukcie, nie zapisovať.
+Dáta a zásobník majú RWU: používateľ môže čítať a zapisovať, nie vykonávať.
+Guard page má RW bez U: používateľský prístup spôsobí výpadok stránky.
+USYSCALL (0x3fffffd000) obsahuje PID a má RU: používateľ iba číta.
+TRAPFRAME (0x3fffffe000) uchováva registre a má RW bez U.
+TRAMPOLINE (0x3ffffff000) obsahuje kód prechodu medzi jadrom a používateľom
+s právami RX bez U. V aktuálnom pgtbltest je text a rodata na 0x0 (RXU), data/bss na
+0x1000 (RWU), guard page na 0x2000 (RW) a zásobník na 0x3000 (RWU).
+Stránky 0x4000 až 0x9000 ešte nie sú pri prvom výpise namapované.
+Z posledných desiatich stránok sú platné iba USYSCALL, TRAPFRAME
+a TRAMPOLINE; ostatné záznamy sú nulové. Rozloženie potvrdzuje ELF
+pgtbltest; po zmene veľkosti programu sa môže zmeniť.
+
+Zrýchlenie getpid
+
+Každý proces má vlastnú stránku USYSCALL. Jadro do nej zapíše PID pri
+allocproc; ugetpid ho číta bez ecall. Aj dieťa po fork má vlastný PID.
+Podobne možno sprístupniť PID rodiča alebo časové údaje. Pri meniacich
+sa údajoch musí jadro zabezpečiť aktualizáciu a konzistentné čítanie.
+
+pgaccess
+
+Jadro skontroluje mapovania, zostaví bitovú masku (bit i pre stránku i),
+vymaže PTE_A a výsledok prenesie pomocou copyout. Kopíruje iba
+(npage + 7) / 8 bajtov. Implementácia podporuje najviac 32768 stránok.
+Neplatné mapovanie alebo neprístupná výstupná adresa vracia -1.
+
+Superstránky jadra
+
+List na úrovni 1 mapuje 2 MiB a vyžaduje zarovnanie VA aj PA na 2 MiB.
+Nezarovnaný začiatok a koniec oblasti používajú bežné 4 KiB stránky.
+Každá superstránka nahrádza 512 listových PTE a šetrí jednu stránku
+najnižšej tabuľky. Pri aktuálnom etext = 0x80008000 a PHYSTOP = 0x88000000 vznikne
+95 superstránok: 32 pre 64 MiB PLIC a 63 pre zarovnanú časť RAM
+od 0x80200000 do 0x88000000. Ušetria 95 stránok najnižšej tabuľky
+(389120 bajtov). Nezarovnaný začiatok RAM si ponechá 4 KiB mapovania.
